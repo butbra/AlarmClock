@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Neon Voice Alarm</title>
     
+    <!-- Home Screen App Settings -->
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <link rel="apple-touch-icon" href="data:image/svg+xml;base64,PHN2ZyB2aWV3Qm94PSIwIDAgMTAwIDEwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI0NSIgZmlsbD0iIzBmMGYxMyIgc3Ryb2tlPSIjMDBlNWZmIiBzdHJva2Utd2lkdGg9IjUiLz48cGF0aCBkPSJNMzUgNTAgTDUwIDM1IEw2NSA1MCIgc3Ryb2tlPSIjZmZmZmZmIiBzdHJva2Utd2lkdGg9IjUiIGZpbGw9Im5vbmUiLz48cGF0aCBkPSJNNTAgMzUgTDUwIDc1IiBzdHJva2U9IiNmZmZmZmYiIHN0cm9rZS13aWR0aD0iNSIvPjwvc3ZnPg==">
@@ -299,6 +300,7 @@
         <div id="date-display">Loading...</div>
     </div>
 
+    <!-- Nightstand Mode Toggle -->
     <div class="nightstand-bar">
         <span>Nightstand Mode (Keep Awake + Dim)</span>
         <div class="toggle-switch" id="nightstand-toggle" onclick="toggleNightstand()"></div>
@@ -312,7 +314,8 @@
     <div class="alarm-list-container">
         <h3>Active Alarms</h3>
         <ul id="alarms-list">
-            </ul>
+            <!-- Alarms injected here via JS -->
+        </ul>
     </div>
 
     <div id="ringing-modal">
@@ -373,13 +376,19 @@
         document.addEventListener('click', unlockAudio);
 
         // --- NIGHTSTAND & WAKE LOCK LOGIC ---
-        async function toggleNightstand() {
+        function toggleNightstand() {
+            setNightstandMode(!isNightstandActive);
+        }
+
+        async function setNightstandMode(active) {
+            if (isNightstandActive === active) return; // Prevent double-triggering
+            
             unlockAudio();
-            isNightstandActive = !isNightstandActive;
+            isNightstandActive = active;
             const toggleBtn = document.getElementById('nightstand-toggle');
 
             if (isNightstandActive) {
-                // Request Screen Wake Lock
+                // Turn Nightstand Mode ON
                 try {
                     if ('wakeLock' in navigator) {
                         wakeLock = await navigator.wakeLock.request('screen');
@@ -391,34 +400,31 @@
                 document.body.classList.add('nightstand');
                 toggleBtn.classList.add('active');
 
-                // Enable Pixel Shifting (Burn-in Protection) every 30 seconds
-                pixelShiftInterval = setInterval(shiftPixels, 30000);
+                // Enable Pixel Shifting (Burn-in Protection)
+                if (!pixelShiftInterval) {
+                    pixelShiftInterval = setInterval(shiftPixels, 30000);
+                }
             } else {
-                disableNightstand();
+                // Turn Nightstand Mode OFF
+                document.body.classList.remove('nightstand');
+                toggleBtn.classList.remove('active');
+
+                if (wakeLock !== null) {
+                    wakeLock.release();
+                    wakeLock = null;
+                }
+
+                if (pixelShiftInterval) {
+                    clearInterval(pixelShiftInterval);
+                    pixelShiftInterval = null;
+                }
+
+                // Reset Clock Position
+                document.getElementById('clock-wrapper').style.transform = 'translate(0px, 0px)';
             }
-        }
-
-        function disableNightstand() {
-            isNightstandActive = false;
-            document.body.classList.remove('nightstand');
-            document.getElementById('nightstand-toggle').classList.remove('active');
-
-            if (wakeLock !== null) {
-                wakeLock.release();
-                wakeLock = null;
-            }
-
-            if (pixelShiftInterval) {
-                clearInterval(pixelShiftInterval);
-                pixelShiftInterval = null;
-            }
-
-            // Reset Clock Position
-            document.getElementById('clock-wrapper').style.transform = 'translate(0px, 0px)';
         }
 
         function shiftPixels() {
-            // Random shift between -15px and +15px
             const x = Math.floor(Math.random() * 30) - 15;
             const y = Math.floor(Math.random() * 30) - 15;
             document.getElementById('clock-wrapper').style.transform = `translate(${x}px, ${y}px)`;
@@ -523,6 +529,11 @@
             
             input.value = ''; 
             renderAlarms();
+
+            // Auto-trigger Nightstand Mode 3 seconds after setting an alarm
+            setTimeout(() => {
+                setNightstandMode(true);
+            }, 3000);
         }
 
         function toggleAlarm(id) {
@@ -596,8 +607,8 @@
             currentlyRingingId = alarm.id;
             alarm.hasRungToday = true;
 
-            // Automatically exit nightstand mode to wake up full screen brightness
-            disableNightstand();
+            // Automatically wake up screen to full brightness
+            setNightstandMode(false);
 
             document.getElementById('ringing-time').innerText = alarm.display;
             document.getElementById('ringing-modal').classList.add('visible');
