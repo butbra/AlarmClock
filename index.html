@@ -3,7 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Neon Alarm</title>
+    <title>Neon Voice Alarm</title>
+    
+    <!-- Home Screen App Settings -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="apple-touch-icon" href="data:image/svg+xml;base64,PHN2ZyB2aWV3Qm94PSIwIDAgMTAwIDEwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI0NSIgZmlsbD0iIzBmMGYxMyIgc3Ryb2tlPSIjMDBlNWZmIiBzdHJva2Utd2lkdGg9IjUiLz48cGF0aCBkPSJNMzUgNTAgTDUwIDM1IEw2NSA1MCIgc3Ryb2tlPSIjZmZmZmZmIiBzdHJva2Utd2lkdGg9IjUiIGZpbGw9Im5vbmUiLz48cGF0aCBkPSJNNTAgMzUgTDUwIDc1IiBzdHJva2U9IiNmZmZmZmYiIHN0cm9rZS13aWR0aD0iNSIvPjwvc3ZnPg==">
+
     <style>
         :root {
             --bg-color: #0f0f13;
@@ -210,23 +216,37 @@
             margin-bottom: 40px;
         }
 
-        .modal-buttons {
+        /* Microphone Listening Indicator */
+        .mic-container {
             display: flex;
-            gap: 20px;
+            flex-direction: column;
+            align-items: center;
+            gap: 15px;
         }
 
-        .btn-snooze {
-            background: #333;
-            color: #fff;
-            padding: 15px 30px;
-            font-size: 1.2rem;
+        .mic-icon {
+            font-size: 4rem;
+            animation: pulse 1s infinite alternate;
         }
 
-        .btn-dismiss {
-            background: var(--danger);
-            color: #fff;
-            padding: 15px 30px;
-            font-size: 1.2rem;
+        .mic-text {
+            color: var(--danger);
+            font-size: 1.5rem;
+            font-weight: bold;
+            letter-spacing: 2px;
+        }
+
+        .transcript-preview {
+            margin-top: 20px;
+            color: var(--text-muted);
+            font-size: 1rem;
+            min-height: 24px;
+            font-style: italic;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); text-shadow: 0 0 10px rgba(255, 59, 48, 0.5); }
+            100% { transform: scale(1.2); text-shadow: 0 0 30px rgba(255, 59, 48, 1); }
         }
     </style>
 </head>
@@ -253,9 +273,11 @@
     <div id="ringing-modal">
         <h1>WAKE UP!</h1>
         <p id="ringing-time">00:00 AM</p>
-        <div class="modal-buttons">
-            <button class="btn-snooze" onclick="snoozeAlarm()">Snooze (5m)</button>
-            <button class="btn-dismiss" onclick="dismissAlarm()">Dismiss</button>
+        
+        <div class="mic-container">
+            <div class="mic-icon">🎙️</div>
+            <div class="mic-text">YELL "STOP" TO DISMISS</div>
+            <div class="transcript-preview" id="live-transcript">...</div>
         </div>
     </div>
 
@@ -264,22 +286,70 @@
         let alarms = [];
         let currentlyRingingId = null;
         
-        // Audio state
+        // Audio & Speech State
         let audioCtx;
         let beepingInterval;
+        let speechRecognition;
+        let isListening = false;
+
+        // --- INITIALIZE SPEECH RECOGNITION ---
+        function initSpeechAPI() {
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            
+            if (!SpeechRecognition) {
+                alert("Speech recognition is not supported in this browser. You won't be able to turn off the alarm!");
+                return;
+            }
+
+            speechRecognition = new SpeechRecognition();
+            speechRecognition.continuous = true;
+            speechRecognition.interimResults = true;
+            speechRecognition.lang = 'en-US';
+
+            speechRecognition.onresult = (event) => {
+                let currentTranscript = "";
+                for (let i = event.resultIndex; i < event.results.length; i++) {
+                    currentTranscript += event.results[i][0].transcript.toLowerCase();
+                }
+                
+                document.getElementById('live-transcript').innerText = `Hearing: "${currentTranscript.trim()}"`;
+
+                if (currentTranscript.includes("stop")) {
+                    dismissAlarm();
+                }
+            };
+
+            speechRecognition.onerror = (event) => {
+                console.error("Speech recognition error:", event.error);
+                document.getElementById('live-transcript').innerText = `Error: ${event.error}. Keep yelling!`;
+            };
+
+            speechRecognition.onend = () => {
+                // If the alarm is still ringing, force it to keep listening
+                if (currentlyRingingId) {
+                    try {
+                        speechRecognition.start();
+                    } catch (e) {
+                        console.log("Restarting speech recognition...");
+                    }
+                }
+            };
+        }
+
+        // Initialize Speech API immediately
+        initSpeechAPI();
 
         // --- CLOCK LOGIC ---
         function updateClock() {
             const now = new Date();
             
-            // Format Time (12-hour with AM/PM)
             let hours = now.getHours();
             let minutes = now.getMinutes();
             let seconds = now.getSeconds();
             const ampm = hours >= 12 ? 'PM' : 'AM';
             
             hours = hours % 12;
-            hours = hours ? hours : 12; // the hour '0' should be '12'
+            hours = hours ? hours : 12; 
             
             const timeStr = 
                 String(hours).padStart(2, '0') + ':' + 
@@ -288,7 +358,6 @@
                 
             document.getElementById('time-display').innerText = timeStr;
 
-            // Format Date
             const options = { weekday: 'long', month: 'short', day: 'numeric' };
             document.getElementById('date-display').innerText = now.toLocaleDateString('en-US', options);
 
@@ -297,13 +366,19 @@
         }
 
         // --- ALARM LOGIC ---
-        function addAlarm(timeOverride = null) {
-            // Browsers require a user interaction before they allow audio to play.
-            // Initializing the audio context here guarantees we have permission later.
+        function addAlarm() {
             initAudio(); 
+            
+            // Request microphone permissions proactively when setting an alarm
+            if (speechRecognition) {
+                try {
+                    speechRecognition.start();
+                    setTimeout(() => speechRecognition.stop(), 500); 
+                } catch(e) {}
+            }
 
             const input = document.getElementById('alarm-time-input');
-            const timeVal = timeOverride || input.value;
+            const timeVal = input.value;
             
             if (!timeVal) {
                 alert("Please select a time!");
@@ -312,16 +387,16 @@
 
             const newAlarm = {
                 id: Date.now().toString(),
-                time24: timeVal, // Format: "HH:MM"
+                time24: timeVal, 
                 display: format24to12(timeVal),
                 active: true,
-                hasRungToday: false // Prevents continuous looping within the same minute
+                hasRungToday: false 
             };
 
             alarms.push(newAlarm);
             alarms.sort((a, b) => a.time24.localeCompare(b.time24));
             
-            input.value = ''; // clear input
+            input.value = ''; 
             renderAlarms();
         }
 
@@ -329,7 +404,7 @@
             const alarm = alarms.find(a => a.id === id);
             if (alarm) {
                 alarm.active = !alarm.active;
-                alarm.hasRungToday = false; // Reset state if toggled
+                alarm.hasRungToday = false; 
                 renderAlarms();
             }
         }
@@ -364,20 +439,18 @@
         }
 
         function checkAlarms(now) {
-            if (currentlyRingingId) return; // Don't trigger if one is already ringing
+            if (currentlyRingingId) return; 
 
             const currentHour = String(now.getHours()).padStart(2, '0');
             const currentMin = String(now.getMinutes()).padStart(2, '0');
             const currentTime24 = `${currentHour}:${currentMin}`;
 
-            // Reset alarms at midnight (or if time passed) so they can ring again tomorrow
             alarms.forEach(a => {
                 if (a.hasRungToday && currentTime24 !== a.time24) {
                     a.hasRungToday = false; 
                 }
             });
 
-            // Find an active alarm that matches the current minute
             const ringingAlarm = alarms.find(a => a.active && a.time24 === currentTime24 && !a.hasRungToday);
 
             if (ringingAlarm) {
@@ -398,12 +471,21 @@
             currentlyRingingId = alarm.id;
             alarm.hasRungToday = true;
 
-            // Update UI
             document.getElementById('ringing-time').innerText = alarm.display;
             document.getElementById('ringing-modal').classList.add('visible');
             document.body.classList.add('ringing');
+            document.getElementById('live-transcript').innerText = "...";
 
             startBeeping();
+            
+            // Start listening for the wake word
+            if (speechRecognition) {
+                try {
+                    speechRecognition.start();
+                } catch (e) {
+                    console.log("Speech recognition already started");
+                }
+            }
         }
 
         function dismissAlarm() {
@@ -411,28 +493,18 @@
             document.getElementById('ringing-modal').classList.remove('visible');
             document.body.classList.remove('ringing');
             
-            // Turn off the alarm switch automatically when dismissed
             if (currentlyRingingId) {
                 const alarm = alarms.find(a => a.id === currentlyRingingId);
                 if (alarm) alarm.active = false;
                 renderAlarms();
             }
+            
             currentlyRingingId = null;
-        }
-
-        function snoozeAlarm() {
-            dismissAlarm(); // Stop current ringing
             
-            // Calculate time 5 minutes from now
-            const now = new Date();
-            now.setMinutes(now.getMinutes() + 5);
-            
-            const snoozeHour = String(now.getHours()).padStart(2, '0');
-            const snoozeMin = String(now.getMinutes()).padStart(2, '0');
-            
-            // Add a new invisible/temporary alarm for 5 mins later
-            alert(`Snoozed! Alarm will ring again at ${format24to12(`${snoozeHour}:${snoozeMin}`)}`);
-            addAlarm(`${snoozeHour}:${snoozeMin}`);
+            // Stop listening
+            if (speechRecognition) {
+                speechRecognition.stop();
+            }
         }
 
         // --- SYNTHESIZED BEEP GENERATOR ---
@@ -451,10 +523,9 @@
             const oscillator = audioCtx.createOscillator();
             const gainNode = audioCtx.createGain();
             
-            oscillator.type = 'square'; // Classic digital alarm sound
-            oscillator.frequency.setValueAtTime(880, audioCtx.currentTime); // High pitch (A5)
+            oscillator.type = 'square'; 
+            oscillator.frequency.setValueAtTime(880, audioCtx.currentTime); 
             
-            // Envelope to make it pop instead of click
             gainNode.gain.setValueAtTime(0, audioCtx.currentTime);
             gainNode.gain.linearRampToValueAtTime(1, audioCtx.currentTime + 0.01);
             gainNode.gain.setValueAtTime(1, audioCtx.currentTime + 0.1);
@@ -469,10 +540,9 @@
 
         function startBeeping() {
             initAudio();
-            // Play a pattern of beeps: Beep-Beep... Beep-Beep...
             beepingInterval = setInterval(() => {
                 playSingleBeep();
-                setTimeout(playSingleBeep, 200); // second fast beep
+                setTimeout(playSingleBeep, 200); 
             }, 1000);
         }
 
@@ -483,7 +553,7 @@
             }
         }
 
-        // Start the clock loop immediately
+        // Start the clock loop
         requestAnimationFrame(updateClock);
     </script>
 </body>
