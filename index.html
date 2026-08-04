@@ -38,7 +38,7 @@
             transition: background-color 0.5s ease, color 0.5s ease;
         }
 
-        /* Nightstand / Ultra Dim Mode */
+        /* Nightstand / Ultra Dim OLED-Safe Mode */
         body.nightstand {
             background-color: #000000 !important;
         }
@@ -47,24 +47,29 @@
         body.nightstand .alarm-list-container,
         body.nightstand .nightstand-bar,
         body.nightstand .version-tracker {
-            opacity: 0.15;
+            opacity: 0; /* Completely invisible */
             transition: opacity 0.5s ease;
         }
 
+        /* Show controls again if the user taps/interacts with them */
         body.nightstand .alarm-controls:hover,
         body.nightstand .alarm-list-container:hover,
         body.nightstand .nightstand-bar:hover,
-        body.nightstand .version-tracker:hover {
-            opacity: 1; /* Brighten controls on touch */
+        body.nightstand .version-tracker:hover,
+        body.nightstand .alarm-controls:active,
+        body.nightstand .alarm-list-container:active,
+        body.nightstand .nightstand-bar:active,
+        body.nightstand .version-tracker:active {
+            opacity: 1; 
         }
 
         body.nightstand #time-display {
-            color: rgba(255, 255, 255, 0.25);
+            color: rgba(255, 255, 255, 0.05); /* Extremely dim white/grey */
             text-shadow: none;
         }
 
         body.nightstand #date-display {
-            color: rgba(0, 229, 255, 0.3);
+            color: rgba(0, 229, 255, 0.08); /* Extremely dim primary color */
         }
 
         /* Ringing Animation */
@@ -333,7 +338,7 @@
 
     <!-- Live Version Tracker -->
     <div class="version-tracker">
-        <strong>v1.3</strong> | Added 3-second auto-dim after setting alarm & Version Tracker
+        <strong>v1.4</strong> | Ultra-dim OLED-Safe Night Mode (Controls invisible until tapped)
     </div>
 
     <div id="ringing-modal">
@@ -418,7 +423,7 @@
                 toggleBtn.classList.add('active');
 
                 if (!pixelShiftInterval) {
-                    pixelShiftInterval = setInterval(shiftPixels, 30000);
+                    pixelShiftInterval = setInterval(shiftPixels, 30000); // Shifts every 30s
                 }
             } else {
                 document.body.classList.remove('nightstand');
@@ -439,6 +444,7 @@
         }
 
         function shiftPixels() {
+            // Randomly shift up to 15px in any direction to prevent OLED burn-in
             const x = Math.floor(Math.random() * 30) - 15;
             const y = Math.floor(Math.random() * 30) - 15;
             document.getElementById('clock-wrapper').style.transform = `translate(${x}px, ${y}px)`;
