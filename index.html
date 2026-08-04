@@ -38,7 +38,6 @@
             transition: background-color 0.2s ease;
         }
 
-        /* Ringing Animation */
         body.ringing {
             animation: flashBg 1s infinite alternate;
         }
@@ -183,7 +182,6 @@
             padding: 5px;
         }
 
-        /* Ringing Modal */
         #ringing-modal {
             position: fixed;
             top: 0; left: 0; width: 100%; height: 100%;
@@ -216,7 +214,6 @@
             margin-bottom: 40px;
         }
 
-        /* Microphone Listening Indicator */
         .mic-container {
             display: flex;
             flex-direction: column;
@@ -269,7 +266,6 @@
         </ul>
     </div>
 
-    <!-- The overlay that appears when an alarm goes off -->
     <div id="ringing-modal">
         <h1>WAKE UP!</h1>
         <p id="ringing-time">00:00 AM</p>
@@ -290,7 +286,41 @@
         let audioCtx;
         let beepingInterval;
         let speechRecognition;
-        let isListening = false;
+        let audioUnlocked = false;
+
+        // --- iOS AUDIO UNLOCK HACK ---
+        // Apple requires an immediate audio play upon a user interaction to unlock the audio context.
+        function unlockAudio() {
+            if (audioUnlocked) return;
+            
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+
+            // Play a completely silent beep to trick iOS into unlocking audio
+            const oscillator = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+            gainNode.gain.value = 0; // Silent!
+            oscillator.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+            
+            oscillator.start(0);
+            oscillator.stop(audioCtx.currentTime + 0.1);
+
+            audioUnlocked = true;
+            
+            // We only need to do this trick once
+            document.removeEventListener('touchstart', unlockAudio);
+            document.removeEventListener('click', unlockAudio);
+        }
+
+        // Bind the unlocker to the very first tap anywhere on the screen
+        document.addEventListener('touchstart', unlockAudio);
+        document.addEventListener('click', unlockAudio);
 
         // --- INITIALIZE SPEECH RECOGNITION ---
         function initSpeechAPI() {
@@ -325,18 +355,12 @@
             };
 
             speechRecognition.onend = () => {
-                // If the alarm is still ringing, force it to keep listening
                 if (currentlyRingingId) {
-                    try {
-                        speechRecognition.start();
-                    } catch (e) {
-                        console.log("Restarting speech recognition...");
-                    }
+                    try { speechRecognition.start(); } catch (e) {}
                 }
             };
         }
 
-        // Initialize Speech API immediately
         initSpeechAPI();
 
         // --- CLOCK LOGIC ---
@@ -367,9 +391,9 @@
 
         // --- ALARM LOGIC ---
         function addAlarm() {
-            initAudio(); 
+            // Also attempt unlock when setting the alarm, just in case
+            unlockAudio();
             
-            // Request microphone permissions proactively when setting an alarm
             if (speechRecognition) {
                 try {
                     speechRecognition.start();
@@ -478,13 +502,10 @@
 
             startBeeping();
             
-            // Start listening for the wake word
             if (speechRecognition) {
                 try {
                     speechRecognition.start();
-                } catch (e) {
-                    console.log("Speech recognition already started");
-                }
+                } catch (e) {}
             }
         }
 
@@ -501,24 +522,18 @@
             
             currentlyRingingId = null;
             
-            // Stop listening
             if (speechRecognition) {
                 speechRecognition.stop();
             }
         }
 
-        // --- SYNTHESIZED BEEP GENERATOR ---
-        function initAudio() {
-            if (!audioCtx) {
-                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-            }
+        function playSingleBeep() {
+            if (!audioCtx) return;
+            
+            // Extra insurance policy for iOS: force resume right before playing
             if (audioCtx.state === 'suspended') {
                 audioCtx.resume();
             }
-        }
-
-        function playSingleBeep() {
-            if (!audioCtx) return;
             
             const oscillator = audioCtx.createOscillator();
             const gainNode = audioCtx.createGain();
@@ -539,7 +554,7 @@
         }
 
         function startBeeping() {
-            initAudio();
+            unlockAudio(); // ensure unlocked
             beepingInterval = setInterval(() => {
                 playSingleBeep();
                 setTimeout(playSingleBeep, 200); 
@@ -553,7 +568,6 @@
             }
         }
 
-        // Start the clock loop
         requestAnimationFrame(updateClock);
     </script>
 </body>
