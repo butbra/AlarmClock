@@ -45,14 +45,16 @@
 
         body.nightstand .alarm-controls,
         body.nightstand .alarm-list-container,
-        body.nightstand .nightstand-bar {
+        body.nightstand .nightstand-bar,
+        body.nightstand .version-tracker {
             opacity: 0.15;
             transition: opacity 0.5s ease;
         }
 
         body.nightstand .alarm-controls:hover,
         body.nightstand .alarm-list-container:hover,
-        body.nightstand .nightstand-bar:hover {
+        body.nightstand .nightstand-bar:hover,
+        body.nightstand .version-tracker:hover {
             opacity: 1; /* Brighten controls on touch */
         }
 
@@ -291,6 +293,17 @@
             0% { transform: scale(1); text-shadow: 0 0 10px rgba(255, 59, 48, 0.5); }
             100% { transform: scale(1.2); text-shadow: 0 0 30px rgba(255, 59, 48, 1); }
         }
+
+        /* Version Tracker */
+        .version-tracker {
+            margin-top: auto;
+            padding-top: 40px;
+            padding-bottom: 10px;
+            font-size: 0.8rem;
+            color: #555;
+            text-align: center;
+            width: 100%;
+        }
     </style>
 </head>
 <body>
@@ -316,6 +329,11 @@
         <ul id="alarms-list">
             <!-- Alarms injected here via JS -->
         </ul>
+    </div>
+
+    <!-- Live Version Tracker -->
+    <div class="version-tracker">
+        <strong>v1.3</strong> | Added 3-second auto-dim after setting alarm & Version Tracker
     </div>
 
     <div id="ringing-modal">
@@ -381,14 +399,13 @@
         }
 
         async function setNightstandMode(active) {
-            if (isNightstandActive === active) return; // Prevent double-triggering
+            if (isNightstandActive === active) return; 
             
             unlockAudio();
             isNightstandActive = active;
             const toggleBtn = document.getElementById('nightstand-toggle');
 
             if (isNightstandActive) {
-                // Turn Nightstand Mode ON
                 try {
                     if ('wakeLock' in navigator) {
                         wakeLock = await navigator.wakeLock.request('screen');
@@ -400,12 +417,10 @@
                 document.body.classList.add('nightstand');
                 toggleBtn.classList.add('active');
 
-                // Enable Pixel Shifting (Burn-in Protection)
                 if (!pixelShiftInterval) {
                     pixelShiftInterval = setInterval(shiftPixels, 30000);
                 }
             } else {
-                // Turn Nightstand Mode OFF
                 document.body.classList.remove('nightstand');
                 toggleBtn.classList.remove('active');
 
@@ -419,7 +434,6 @@
                     pixelShiftInterval = null;
                 }
 
-                // Reset Clock Position
                 document.getElementById('clock-wrapper').style.transform = 'translate(0px, 0px)';
             }
         }
@@ -607,7 +621,6 @@
             currentlyRingingId = alarm.id;
             alarm.hasRungToday = true;
 
-            // Automatically wake up screen to full brightness
             setNightstandMode(false);
 
             document.getElementById('ringing-time').innerText = alarm.display;
