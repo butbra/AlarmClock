@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Neon Alarm</title>
+    <style>
+        :root {
+            --bg-color: #0f0f13;
+            --surface-color: #1c1c24;
+            --primary-color: #00e5ff;
+            --text-main: #ffffff;
+            --text-muted: #8e8e93;
+            --danger: #ff3b30;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+            transition: background-color 0.2s ease;
+        }
+
+        /* Ringing Animation */
+        body.ringing {
+            animation: flashBg 1s infinite alternate;
+        }
+        @keyframes flashBg {
+            0% { background-color: var(--bg-color); }
+            100% { background-color: #4a0000; }
+        }
+
+        .clock-container {
+            text-align: center;
+            margin: 10vh 0 40px 0;
+        }
+
+        #time-display {
+            font-size: 5rem;
+            font-weight: 200;
+            letter-spacing: 2px;
+            text-shadow: 0 0 20px rgba(0, 229, 255, 0.4);
+            font-variant-numeric: tabular-nums;
+        }
+
+        #date-display {
+            font-size: 1.2rem;
+            color: var(--primary-color);
+            margin-top: 10px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .alarm-controls {
+            background: var(--surface-color);
+            padding: 20px;
+            border-radius: 16px;
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+            margin-bottom: 30px;
+            width: 100%;
+            max-width: 400px;
+        }
+
+        input[type="time"] {
+            background: var(--bg-color);
+            color: var(--text-main);
+            border: 1px solid #333;
+            padding: 12px;
+            border-radius: 8px;
+            font-size: 1.2rem;
+            flex-grow: 1;
+            color-scheme: dark;
+        }
+
+        button {
+            background: var(--primary-color);
+            color: #000;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+
+        button:active {
+            opacity: 0.8;
+        }
+
+        .alarm-list-container {
+            width: 100%;
+            max-width: 400px;
+        }
+
+        .alarm-list-container h3 {
+            margin-bottom: 15px;
+            color: var(--text-muted);
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        #alarms-list {
+            list-style: none;
+        }
+
+        .alarm-item {
+            background: var(--surface-color);
+            padding: 15px 20px;
+            border-radius: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+            font-size: 1.5rem;
+        }
+
+        .alarm-item.inactive {
+            opacity: 0.5;
+        }
+
+        .alarm-actions {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .toggle-switch {
+            width: 50px;
+            height: 28px;
+            background: #333;
+            border-radius: 20px;
+            position: relative;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+
+        .toggle-switch::after {
+            content: '';
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            width: 24px;
+            height: 24px;
+            background: #fff;
+            border-radius: 50%;
+            transition: transform 0.3s;
+        }
+
+        .toggle-switch.active {
+            background: var(--primary-color);
+        }
+
+        .toggle-switch.active::after {
+            transform: translateX(22px);
+        }
+
+        .delete-btn {
+            background: transparent;
+            color: var(--danger);
+            font-size: 1.2rem;
+            padding: 5px;
+        }
+
+        /* Ringing Modal */
+        #ringing-modal {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(5px);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+        }
+
+        #ringing-modal.visible {
+            opacity: 1;
+            pointer-events: all;
+        }
+
+        #ringing-modal h1 {
+            font-size: 3rem;
+            color: var(--primary-color);
+            margin-bottom: 10px;
+            text-shadow: 0 0 20px var(--primary-color);
+        }
+
+        #ringing-modal p {
+            font-size: 1.2rem;
+            margin-bottom: 40px;
+        }
+
+        .modal-buttons {
+            display: flex;
+            gap: 20px;
+        }
+
+        .btn-snooze {
+            background: #333;
+            color: #fff;
+            padding: 15px 30px;
+            font-size: 1.2rem;
+        }
+
+        .btn-dismiss {
+            background: var(--danger);
+            color: #fff;
+            padding: 15px 30px;
+            font-size: 1.2rem;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="clock-container">
+        <div id="time-display">00:00:00</div>
+        <div id="date-display">Loading...</div>
+    </div>
+
+    <div class="alarm-controls">
+        <input type="time" id="alarm-time-input" required>
+        <button onclick="addAlarm()">Set Alarm</button>
+    </div>
+
+    <div class="alarm-list-container">
+        <h3>Active Alarms</h3>
+        <ul id="alarms-list">
+            <!-- Alarms injected here via JS -->
+        </ul>
+    </div>
+
+    <!-- The overlay that appears when an alarm goes off -->
+    <div id="ringing-modal">
+        <h1>WAKE UP!</h1>
+        <p id="ringing-time">00:00 AM</p>
+        <div class="modal-buttons">
+            <button class="btn-snooze" onclick="snoozeAlarm()">Snooze (5m)</button>
+            <button class="btn-dismiss" onclick="dismissAlarm()">Dismiss</button>
+        </div>
+    </div>
+
+    <script>
+        // --- STATE ---
+        let alarms = [];
+        let currentlyRingingId = null;
+        
+        // Audio state
+        let audioCtx;
+        let beepingInterval;
+
+        // --- CLOCK LOGIC ---
+        function updateClock() {
+            const now = new Date();
+            
+            // Format Time (12-hour with AM/PM)
+            let hours = now.getHours();
+            let minutes = now.getMinutes();
+            let seconds = now.getSeconds();
+            const ampm = hours >= 12 ? 'PM' : 'AM';
+            
+            hours = hours % 12;
+            hours = hours ? hours : 12; // the hour '0' should be '12'
+            
+            const timeStr = 
+                String(hours).padStart(2, '0') + ':' + 
+                String(minutes).padStart(2, '0') + ':' + 
+                String(seconds).padStart(2, '0') + ' ' + ampm;
+                
+            document.getElementById('time-display').innerText = timeStr;
+
+            // Format Date
+            const options = { weekday: 'long', month: 'short', day: 'numeric' };
+            document.getElementById('date-display').innerText = now.toLocaleDateString('en-US', options);
+
+            checkAlarms(now);
+            requestAnimationFrame(updateClock);
+        }
+
+        // --- ALARM LOGIC ---
+        function addAlarm(timeOverride = null) {
+            // Browsers require a user interaction before they allow audio to play.
+            // Initializing the audio context here guarantees we have permission later.
+            initAudio(); 
+
+            const input = document.getElementById('alarm-time-input');
+            const timeVal = timeOverride || input.value;
+            
+            if (!timeVal) {
+                alert("Please select a time!");
+                return;
+            }
+
+            const newAlarm = {
+                id: Date.now().toString(),
+                time24: timeVal, // Format: "HH:MM"
+                display: format24to12(timeVal),
+                active: true,
+                hasRungToday: false // Prevents continuous looping within the same minute
+            };
+
+            alarms.push(newAlarm);
+            alarms.sort((a, b) => a.time24.localeCompare(b.time24));
+            
+            input.value = ''; // clear input
+            renderAlarms();
+        }
+
+        function toggleAlarm(id) {
+            const alarm = alarms.find(a => a.id === id);
+            if (alarm) {
+                alarm.active = !alarm.active;
+                alarm.hasRungToday = false; // Reset state if toggled
+                renderAlarms();
+            }
+        }
+
+        function deleteAlarm(id) {
+            alarms = alarms.filter(a => a.id !== id);
+            renderAlarms();
+        }
+
+        function renderAlarms() {
+            const list = document.getElementById('alarms-list');
+            list.innerHTML = '';
+
+            if (alarms.length === 0) {
+                list.innerHTML = '<li style="color: var(--text-muted); text-align: center; padding: 20px;">No alarms set.</li>';
+                return;
+            }
+
+            alarms.forEach(alarm => {
+                const li = document.createElement('li');
+                li.className = `alarm-item ${alarm.active ? '' : 'inactive'}`;
+                
+                li.innerHTML = `
+                    <span>${alarm.display}</span>
+                    <div class="alarm-actions">
+                        <div class="toggle-switch ${alarm.active ? 'active' : ''}" onclick="toggleAlarm('${alarm.id}')"></div>
+                        <button class="delete-btn" onclick="deleteAlarm('${alarm.id}')">✕</button>
+                    </div>
+                `;
+                list.appendChild(li);
+            });
+        }
+
+        function checkAlarms(now) {
+            if (currentlyRingingId) return; // Don't trigger if one is already ringing
+
+            const currentHour = String(now.getHours()).padStart(2, '0');
+            const currentMin = String(now.getMinutes()).padStart(2, '0');
+            const currentTime24 = `${currentHour}:${currentMin}`;
+
+            // Reset alarms at midnight (or if time passed) so they can ring again tomorrow
+            alarms.forEach(a => {
+                if (a.hasRungToday && currentTime24 !== a.time24) {
+                    a.hasRungToday = false; 
+                }
+            });
+
+            // Find an active alarm that matches the current minute
+            const ringingAlarm = alarms.find(a => a.active && a.time24 === currentTime24 && !a.hasRungToday);
+
+            if (ringingAlarm) {
+                triggerAlarm(ringingAlarm);
+            }
+        }
+
+        function format24to12(time24) {
+            let [h, m] = time24.split(':');
+            h = parseInt(h);
+            const ampm = h >= 12 ? 'PM' : 'AM';
+            h = h % 12 || 12;
+            return `${h}:${m} ${ampm}`;
+        }
+
+        // --- ALERT & AUDIO SYSTEM ---
+        function triggerAlarm(alarm) {
+            currentlyRingingId = alarm.id;
+            alarm.hasRungToday = true;
+
+            // Update UI
+            document.getElementById('ringing-time').innerText = alarm.display;
+            document.getElementById('ringing-modal').classList.add('visible');
+            document.body.classList.add('ringing');
+
+            startBeeping();
+        }
+
+        function dismissAlarm() {
+            stopBeeping();
+            document.getElementById('ringing-modal').classList.remove('visible');
+            document.body.classList.remove('ringing');
+            
+            // Turn off the alarm switch automatically when dismissed
+            if (currentlyRingingId) {
+                const alarm = alarms.find(a => a.id === currentlyRingingId);
+                if (alarm) alarm.active = false;
+                renderAlarms();
+            }
+            currentlyRingingId = null;
+        }
+
+        function snoozeAlarm() {
+            dismissAlarm(); // Stop current ringing
+            
+            // Calculate time 5 minutes from now
+            const now = new Date();
+            now.setMinutes(now.getMinutes() + 5);
+            
+            const snoozeHour = String(now.getHours()).padStart(2, '0');
+            const snoozeMin = String(now.getMinutes()).padStart(2, '0');
+            
+            // Add a new invisible/temporary alarm for 5 mins later
+            alert(`Snoozed! Alarm will ring again at ${format24to12(`${snoozeHour}:${snoozeMin}`)}`);
+            addAlarm(`${snoozeHour}:${snoozeMin}`);
+        }
+
+        // --- SYNTHESIZED BEEP GENERATOR ---
+        function initAudio() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+        }
+
+        function playSingleBeep() {
+            if (!audioCtx) return;
+            
+            const oscillator = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+            
+            oscillator.type = 'square'; // Classic digital alarm sound
+            oscillator.frequency.setValueAtTime(880, audioCtx.currentTime); // High pitch (A5)
+            
+            // Envelope to make it pop instead of click
+            gainNode.gain.setValueAtTime(0, audioCtx.currentTime);
+            gainNode.gain.linearRampToValueAtTime(1, audioCtx.currentTime + 0.01);
+            gainNode.gain.setValueAtTime(1, audioCtx.currentTime + 0.1);
+            gainNode.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.2);
+            
+            oscillator.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+            
+            oscillator.start();
+            oscillator.stop(audioCtx.currentTime + 0.2);
+        }
+
+        function startBeeping() {
+            initAudio();
+            // Play a pattern of beeps: Beep-Beep... Beep-Beep...
+            beepingInterval = setInterval(() => {
+                playSingleBeep();
+                setTimeout(playSingleBeep, 200); // second fast beep
+            }, 1000);
+        }
+
+        function stopBeeping() {
+            if (beepingInterval) {
+                clearInterval(beepingInterval);
+                beepingInterval = null;
+            }
+        }
+
+        // Start the clock loop immediately
+        requestAnimationFrame(updateClock);
+    </script>
+</body>
+</html>
